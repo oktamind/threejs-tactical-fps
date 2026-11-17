@@ -155,6 +155,8 @@ export function createHud() {
         el('buy-money').textContent = `$${data.money}`;
         el('buy-smg').disabled = data.ownedSmg || data.money < 900;
         el('buy-smg').textContent = data.ownedSmg ? 'PDW-9 SMG — OWNED' : 'Buy PDW-9 SMG — $900';
+        el('buy-sniper').disabled = data.ownedSniper || data.money < 1200;
+        el('buy-sniper').textContent = data.ownedSniper ? 'LR-8 Longshot — OWNED' : 'Buy LR-8 Longshot — $1200';
         el('buy-frag').disabled = data.money < 300 || data.frags >= 2;
         el('buy-frag').textContent = `Buy frag grenade — $300 (${data.frags}/2)`;
       } else if (mode === 'round') {
@@ -183,6 +185,9 @@ export function createHud() {
     },
     onBuySmg(handler) {
       el('buy-smg').addEventListener('click', handler);
+    },
+    onBuySniper(handler) {
+      el('buy-sniper').addEventListener('click', handler);
     },
     onBuyFrag(handler) {
       el('buy-frag').addEventListener('click', handler);

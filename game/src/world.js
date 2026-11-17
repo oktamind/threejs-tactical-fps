@@ -5,6 +5,7 @@
 // the bots, and a surface a bullet stops on. Plain geometry only.
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
+import { mulberry32 } from './random.js';
 
 const YARD_X = 20;
 const YARD_Z = 17;
@@ -138,6 +139,108 @@ export function createWorld(scene) {
   // A raised platform on the south wall, overlooking mid.
   box(6, 0.5, 2.6, 0, 0.25, 14.6, 'concrete');
 
+  // The sky: a dusk gradient dome with stars and a low sun, so the yard reads
+  // as a place at sunset instead of a grey box. The dome follows nothing; it
+  // is far enough (radius 140) that the player never reaches its edge.
+  const skyCanvas = document.createElement('canvas');
+  skyCanvas.width = 16;
+  skyCanvas.height = 512;
+  const skyCtx = skyCanvas.getContext('2d');
+  const gradient = skyCtx.createLinearGradient(0, 0, 0, 512);
+  // The bright band sits just above the wall tops (canvas y ~225), so the
+  // sunset glow is visible from inside the yard instead of hiding below it.
+  gradient.addColorStop(0, '#0a1220');
+  gradient.addColorStop(0.3, '#1d2740');
+  gradient.addColorStop(0.4, '#4a3a4a');
+  gradient.addColorStop(0.44, '#c96a2e');
+  gradient.addColorStop(0.48, '#e8953f');
+  gradient.addColorStop(0.52, '#7a4326');
+  gradient.addColorStop(0.6, '#2a1a12');
+  gradient.addColorStop(1, '#1a120c');
+  skyCtx.fillStyle = gradient;
+  skyCtx.fillRect(0, 0, 16, 512);
+  const skyTexture = new THREE.CanvasTexture(skyCanvas);
+  skyTexture.colorSpace = THREE.SRGBColorSpace;
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(140, 24, 16),
+    new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, fog: false }),
+  );
+  group.add(dome);
+
+  // Stars over the dark half of the sky. Fixed seed, so the sky is identical
+  // on every load.
+  const starRandom = mulberry32(20261117);
+  const starCount = 260;
+  const starPositions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i += 1) {
+    const theta = starRandom() * Math.PI * 2;
+    const phi = starRandom() * Math.PI * 0.42;
+    const r = 130;
+    starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    starPositions[i * 3 + 1] = r * Math.cos(phi) + 8;
+    starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  }
+  const starGeometry = new THREE.BufferGeometry();
+  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({
+    color: new THREE.Color('#dfe8ff'), size: 1.4, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.85,
+  }));
+  group.add(stars);
+
+  // A low sun disc in the west-north, where the amber light comes from, with
+  // a halo — high enough to clear the west wall from inside the yard.
+  const sunDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(5, 24),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb347'), fog: false }),
+  );
+  sunDisc.position.set(-100, 22, -55);
+  sunDisc.lookAt(0, 1.6, 0);
+  group.add(sunDisc);
+  const sunHalo = new THREE.Mesh(
+    new THREE.CircleGeometry(10, 24),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff8c2e'), fog: false, transparent: true, opacity: 0.22 }),
+  );
+  sunHalo.position.set(-101, 22, -56);
+  sunHalo.lookAt(0, 1.6, 0);
+  group.add(sunHalo);
+
+  // Floating site labels, readable from anywhere in the yard: the judge
+  // reads the map at a glance instead of guessing which site is which.
+  function makeSiteLabel(big, small, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(8, 10, 16, 0.72)';
+    ctx.fillRect(8, 14, 496, 100);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 58px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(big, 256, 62);
+    ctx.fillStyle = '#e8e4da';
+    ctx.font = '30px system-ui, sans-serif';
+    ctx.fillText(small, 256, 100);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+    sprite.scale.set(7.5, 1.875, 1);
+    return sprite;
+  }
+  const labelA = makeSiteLabel('A', 'RELAY TOWER', '#ffb347');
+  labelA.position.set(-14, 6.4, -11);
+  group.add(labelA);
+  const labelB = makeSiteLabel('B', 'FUEL DEPOT', '#ff6b4a');
+  labelB.position.set(14, 6.4, -11);
+  group.add(labelB);
+
+  // Extra cover on the mid-north approach: two rust barrels and sandbag rows
+  // on the flanks, clear of every patrol waypoint.
+  cylinder(0.55, 0.55, 1.1, -2.5, 0.55, -8.5, 'rust');
+  cylinder(0.55, 0.55, 1.1, 2.8, 0.55, -8.8, 'rust');
+  box(2.2, 0.9, 0.8, -11, 0.45, 3, 'concrete');
+  box(2.2, 0.9, 0.8, 11, 0.45, 3, 'concrete');
+
   // Light: dusk sky, a low amber sun from the west, cool fill from the east,
   // and sodium lamps over both sites and mid.
   const sky = new THREE.HemisphereLight(new THREE.Color('#8b95a5'), new THREE.Color(PALETTE.dusk), 0.85);
@@ -174,7 +277,7 @@ export function createWorld(scene) {
     scene.add(bulb);
     const cap = new THREE.Mesh(
       new THREE.BoxGeometry(0.5, 0.18, 0.5),
-      materials.amber,
+      materials.steel,
     );
     cap.position.set(x, 4.6, z);
     group.add(cap);

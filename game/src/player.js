@@ -9,6 +9,8 @@ const CROUCH_HEIGHT = 1.12;
 const STAND_EYE = 1.6;
 const CROUCH_EYE = 1.02;
 const WALK_SPEED = 5.4;
+const SPRINT_MULTIPLIER = 1.35;
+const AIM_SPEED_MULTIPLIER = 0.6;
 const CROUCH_SPEED = 2.5;
 const GROUND_ACCEL = 46;
 const AIR_ACCEL = 10;
@@ -28,6 +30,8 @@ export function createPlayer(colliders, spawn) {
     height: STAND_HEIGHT,
     health: 100,
     alive: true,
+    sprinting: false,
+    aiming: false,
   };
   const probe = new THREE.Box3();
   const wish = new THREE.Vector3();
@@ -74,7 +78,13 @@ export function createPlayer(colliders, spawn) {
       wish.set(-sin * forward + cos * strafe, 0, -cos * forward - sin * strafe).normalize();
     }
 
-    const speed = body.crouching ? CROUCH_SPEED : WALK_SPEED;
+    // Sprint: hold Shift while running forward, not crouched and not aiming.
+    // Aiming down sights slows the player to a careful walk.
+    const sprinting = (keys.has('ShiftLeft') || keys.has('ShiftRight')) && forward > 0 && !body.crouching && !body.aiming;
+    body.sprinting = sprinting;
+    const speed = body.crouching
+      ? CROUCH_SPEED
+      : WALK_SPEED * (sprinting ? SPRINT_MULTIPLIER : 1) * (body.aiming ? AIM_SPEED_MULTIPLIER : 1);
     const blend = Math.min(1, (body.onGround ? GROUND_ACCEL : AIR_ACCEL) * dt / speed);
     body.velocity.x += (wish.x * speed - body.velocity.x) * blend;
     body.velocity.z += (wish.z * speed - body.velocity.z) * blend;
@@ -126,6 +136,8 @@ export function createPlayer(colliders, spawn) {
     body.alive = true;
     body.crouching = false;
     body.height = STAND_HEIGHT;
+    body.sprinting = false;
+    body.aiming = false;
   }
 
   return {

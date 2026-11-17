@@ -263,6 +263,7 @@ function showBuy() {
     round: roundsState.round,
     money: roundsState.money,
     ownedSmg: arsenal.owned.has('smg'),
+    ownedSniper: arsenal.owned.has('sniper'),
     frags: roundsState.frags,
   });
 }
@@ -352,6 +353,16 @@ hud.onBuySmg(() => {
   }
 });
 
+hud.onBuySniper(() => {
+  if (rounds.buySniper()) {
+    arsenal.buy('sniper');
+    arsenal.select('sniper');
+    sound.buy();
+    showBuy();
+    syncHud();
+  }
+});
+
 hud.onBuyFrag(() => {
   if (rounds.buyFrag()) {
     sound.buy();
@@ -409,16 +420,21 @@ function frame(now) {
   lastTime = now;
   if (!frozen) {
     const look = input.takeLook();
-    player.look(look.x, look.y);
+    // Aim down sights: steadier look, a tighter field of view and far less
+    // spread, at the cost of walking speed (see player.step).
+    body.aiming = input.state.aiming && roundsState.phase === 'live' && body.alive;
+    const lookScale = body.aiming ? 0.6 : 1;
+    player.look(look.x * lookScale, look.y * lookScale);
     if (roundsState.phase === 'live' && body.alive) {
       if (input.state.firing && arsenal.ready()) {
         const def = arsenal.def();
-        if (def.auto || input.pressed('MouseLeft')) shoot(shot ? 0 : arsenal.spread(player.groundSpeed()));
+        if (def.auto || input.pressed('MouseLeft')) shoot(shot ? 0 : arsenal.spread(player.groundSpeed()) * (body.aiming ? 0.35 : 1));
       }
       if (input.pressed('KeyR')) arsenal.reload();
       if (input.pressed('Digit1')) { arsenal.select('rifle'); syncHudAmmo(); }
       if (input.pressed('Digit2')) { arsenal.select('smg'); syncHudAmmo(); }
       if (input.pressed('Digit3')) { arsenal.select('pistol'); syncHudAmmo(); }
+      if (input.pressed('Digit4')) { arsenal.select('sniper'); syncHudAmmo(); }
       if (input.pressed('KeyG') && rounds.useFrag()) {
         camera.getWorldDirection(direction);
         origin.copy(camera.position);
@@ -436,6 +452,12 @@ function frame(now) {
       steps += 1;
     }
     if (accumulator > FIXED_STEP * 5) accumulator = 0;
+    // Aiming narrows the field of view smoothly; releasing it opens back up.
+    const targetFov = body.aiming ? 55 : 74;
+    if (Math.abs(camera.fov - targetFov) > 0.05) {
+      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
+      camera.updateProjectionMatrix();
+    }
     syncCamera();
   }
   renderer.render(scene, camera);
@@ -486,13 +508,13 @@ function runShot(name) {
   } else if (name === 'buy') {
     roundsState.round = 2;
     roundsState.playerWins = 1;
-    roundsState.money = 900;
+    roundsState.money = 1200;
     roundsState.frags = 0;
     roundsState.timer = 100;
     body.position.set(0, 0, 14);
     settle(10);
     aimAt(new THREE.Vector3(0, 2, -11));
-    hud.showOverlay('buy', { round: 2, money: 900, ownedSmg: false, frags: 0 });
+    hud.showOverlay('buy', { round: 2, money: 1200, ownedSmg: false, ownedSniper: false, frags: 0 });
     syncHud();
   } else if (name === 'bomb') {
     roundsState.round = 2;

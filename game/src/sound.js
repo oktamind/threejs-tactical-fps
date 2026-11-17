@@ -71,7 +71,7 @@ export function createSoundEffects() {
     }
   }
 
-  const PITCH = { rifle: 190, smg: 240, pistol: 140 };
+  const PITCH = { rifle: 190, smg: 240, pistol: 140, sniper: 120 };
 
   return {
     unlock,

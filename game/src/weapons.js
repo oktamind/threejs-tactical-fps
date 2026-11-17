@@ -22,6 +22,11 @@ export const WEAPONS = {
     mag: 12, reserve: 36, gap: 0.24, reload: 1.3, damage: 45, headDamage: 100,
     spreadStill: 0.003, spreadMove: 0.02, auto: false, kick: 0.07, range: 45,
   },
+  sniper: {
+    id: 'sniper', name: 'LR-8 Longshot', key: 'Digit4', price: 1200,
+    mag: 5, reserve: 15, gap: 1.1, reload: 2.6, damage: 90, headDamage: 200,
+    spreadStill: 0.0008, spreadMove: 0.03, auto: false, kick: 0.12, range: 100,
+  },
 };
 
 const MUZZLE_TIME = 0.06;
@@ -39,6 +44,20 @@ function buildViewModel(def) {
     sight.position.set(0, 0.05, -0.12);
     model.add(slide, handle, sight);
     model.position.set(0.2, -0.22, -0.38);
+  } else if (def.id === 'sniper') {
+    // Longshot: a long thin barrel, a scope tube on top, a short stock.
+    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 0.34), body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.62), grip);
+    barrel.position.set(0, 0.02, -0.44);
+    const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 12), grip);
+    scope.rotation.x = Math.PI / 2;
+    scope.position.set(0, 0.085, -0.05);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.2), grip);
+    stock.position.set(0, -0.02, 0.26);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.02, 0.16), accent);
+    stripe.position.set(0, 0.05, -0.02);
+    model.add(receiver, barrel, scope, stock, stripe);
+    model.position.set(0.24, -0.2, -0.42);
   } else {
     const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.42), body);
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, def.id === 'smg' ? 0.24 : 0.4), grip);
