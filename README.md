@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/best-game-01/oktamind/threejs-tactical-fps/rank.svg)](https://make.fun/bounty/best-game-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 [![reward](https://make.fun/badge/best-game-01/oktamind/threejs-tactical-fps/reward.svg)](https://make.fun/bounty/best-game-01?utm_source=github&utm_medium=readme&utm_campaign=best-game-01)
 
-Relay Yard: a round-based tactical FPS in three.js. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out — with a buy menu, three weapons, frag grenades, and bots that patrol, hear gunfire, and converge to defuse.
+Relay Yard: a round-based tactical FPS in three.js. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out — with a buy menu, three weapons, frag grenades, and three defender types (patrolling Defenders, rushing Rushers, long-range Marksmen) that patrol, hear gunfire, converge to defuse, and get tougher every round. Synthesised WebAudio sound, muzzle flash, tracers, screen shake, a sweeping radar dish over the yard, and a match-results screen with a round-by-round history.
 
 ## Run it
 

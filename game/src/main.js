@@ -15,6 +15,7 @@ import { createBots } from './bots.js';
 import { createObjective } from './objective.js';
 import { createRounds } from './rounds.js';
 import { createHud } from './hud.js';
+import { createSoundEffects } from './sound.js';
 
 const FIXED_STEP = 1 / 60;
 const params = new URLSearchParams(window.location.search);
@@ -42,6 +43,7 @@ const bots = createBots(scene, world.colliders, world.shootables, random);
 const objective = createObjective(scene);
 const rounds = createRounds();
 const hud = createHud();
+const sound = createSoundEffects();
 const player = createPlayer(world.colliders, PLAYER_SPAWN);
 const input = createInput(renderer.domElement, onLockChange);
 const raycaster = new THREE.Raycaster();
@@ -92,10 +94,19 @@ let elapsed = 0;
 let frozen = false;
 let accumulator = 0;
 let lastTime = performance.now();
+let shake = 0;
+let wasBlast = false;
+let wasPlanted = false;
+let lastPlantBeep = 0;
 
 function syncCamera() {
   camera.position.set(body.position.x, body.position.y + body.eye, body.position.z);
   camera.rotation.set(body.pitch, body.yaw, 0, 'YXZ');
+  if (shake > 0.001) {
+    camera.position.x += (random() - 0.5) * shake * 0.3;
+    camera.position.y += (random() - 0.5) * shake * 0.3;
+    camera.rotation.z += (random() - 0.5) * shake * 0.02;
+  }
 }
 
 function aimAt(point) {
@@ -126,7 +137,10 @@ function blastDamage(center, radius, damage) {
     origin.set(bot.position.x, 1.2, bot.position.z);
     if (losBlocked(center, origin)) continue;
     const scaled = Math.round(damage * (1 - (distance / radius) * 0.6));
-    if (bots.damage(bot.torso, scaled)) onBotKilled(bot);
+    if (bots.damage(bot.torso, scaled)) {
+      sound.hit(true);
+      onBotKilled(bot);
+    }
   }
   const playerDistance = Math.hypot(body.position.x - center.x, body.position.z - center.z);
   if (body.alive && playerDistance < radius) {
@@ -139,7 +153,7 @@ function blastDamage(center, radius, damage) {
 
 function onBotKilled(bot) {
   rounds.addKillReward();
-  hud.feed(`Defender ${bot.id + 1} eliminated  +$300`, true);
+  hud.feed(`${bot.label} ${bot.id + 1} eliminated  +$300`, true);
   if (bots.aliveCount() === 0 && roundsState.phase === 'live') {
     endRound(true, 'All four defenders are down.');
   }
@@ -148,6 +162,7 @@ function onBotKilled(bot) {
 function hurtPlayer(damage) {
   if (!body.alive || damage <= 0) return;
   body.health -= damage;
+  shake = 0.35;
   hud.damageFlash();
   hud.setHealth(body.health);
   if (body.health <= 0) {
@@ -170,6 +185,7 @@ function onBotShot(damage, headshot, bot) {
 function shoot(spread) {
   const def = arsenal.def();
   if (!arsenal.takeRound()) return false;
+  sound.shoot(arsenal.current());
   camera.getWorldDirection(direction);
   direction.x += (random() * 2 - 1) * spread;
   direction.y += (random() * 2 - 1) * spread;
@@ -185,6 +201,7 @@ function shoot(spread) {
   if (hit && hit.object.userData.bot) {
     const killed = bots.damage(hit.object, hit.object.userData.part === 'head' ? def.headDamage : def.damage);
     hud.hitMarker(killed, shot ? 4000 : 120);
+    sound.hit(killed);
     if (killed) onBotKilled(hit.object.userData.bot);
   }
   arsenal.pullTrigger();
@@ -222,7 +239,7 @@ function syncHud() {
 
 function startMatch() {
   rounds.reset();
-  bots.reset();
+  bots.reset(1);
   objective.reset();
   grenade.reset();
   player.reset(PLAYER_SPAWN);
@@ -232,6 +249,10 @@ function startMatch() {
   arsenal.select('rifle');
   arsenal.refillAll();
   elapsed = 0;
+  shake = 0;
+  wasBlast = false;
+  wasPlanted = false;
+  lastPlantBeep = 0;
   hud.hideBanner();
   showBuy();
 }
@@ -248,18 +269,26 @@ function showBuy() {
 
 function startRound() {
   rounds.startRound();
-  bots.reset();
+  bots.reset(roundsState.round);
   objective.reset();
   grenade.reset();
   player.reset(PLAYER_SPAWN);
   arsenal.refillAll();
   hud.hideOverlay();
-  hud.showBanner(`ROUND ${roundsState.round}`, 'Plant the charge or eliminate all defenders', 2600);
+  hud.showBanner(
+    `ROUND ${roundsState.round}`,
+    roundsState.round > 1
+      ? 'Defenders push harder — faster reactions, heavier fire'
+      : 'Plant the charge or eliminate all defenders',
+    2600,
+  );
   syncHud();
 }
 
 function endRound(won, message) {
   rounds.endRound(won, message);
+  if (won) sound.roundWon();
+  else sound.roundLost();
   hud.showBanner(won ? 'ROUND WON' : 'ROUND LOST', message, 2000);
   if (document.pointerLockElement) document.exitPointerLock();
   setTimeout(() => {
@@ -268,6 +297,7 @@ function endRound(won, message) {
         won: roundsState.matchWon,
         playerWins: roundsState.playerWins,
         botWins: roundsState.botWins,
+        history: roundsState.history,
       });
     } else {
       hud.showOverlay('round', {
@@ -293,6 +323,8 @@ function onLockChange(locked) {
 
 hud.onPlay(() => {
   if (shot) return;
+  sound.unlock();
+  sound.uiClick();
   if (roundsState.phase === 'buy') {
     startRound();
     input.requestLock();
@@ -314,6 +346,7 @@ hud.onBuySmg(() => {
   if (rounds.buySmg()) {
     arsenal.buy('smg');
     arsenal.select('smg');
+    sound.buy();
     showBuy();
     syncHud();
   }
@@ -321,6 +354,7 @@ hud.onBuySmg(() => {
 
 hud.onBuyFrag(() => {
   if (rounds.buyFrag()) {
+    sound.buy();
     showBuy();
     syncHud();
   }
@@ -329,6 +363,8 @@ hud.onBuyFrag(() => {
 function step(dt) {
   elapsed += dt;
   body.speed = player.groundSpeed();
+  shake = Math.max(0, shake - dt * 1.4);
+  world.step(dt);
   if (roundsState.phase === 'live') {
     roundsState.timer -= dt;
     if (roundsState.timer <= 0 && !bombState.planted && !roundsState.roundOver) {
@@ -338,7 +374,25 @@ function step(dt) {
   player.step(dt, input.state.keys);
   arsenal.step(dt);
   grenade.step(dt, blastDamage);
+  if (grenade.state.blastLeft > 0 && !wasBlast) {
+    sound.explosion();
+    shake = Math.max(shake, 0.4);
+  }
+  wasBlast = grenade.state.blastLeft > 0;
   objective.step(dt, body.position, input.state.keys.has('KeyE') && body.alive && roundsState.phase === 'live');
+  if (bombState.planting) {
+    const quarter = Math.floor(bombState.plantProgress / 0.25);
+    if (quarter > lastPlantBeep) {
+      lastPlantBeep = quarter;
+      sound.plantBeep();
+    }
+  } else {
+    lastPlantBeep = 0;
+  }
+  if (bombState.planted && !wasPlanted) {
+    sound.buy();
+  }
+  wasPlanted = bombState.planted;
   if (bombState.detonated && roundsState.phase === 'live') {
     endRound(true, `Charge detonated at site ${bombState.site ? bombState.site.name : ''}.`);
   } else if (bombState.defused && roundsState.phase === 'live') {
@@ -373,6 +427,7 @@ function frame(now) {
       }
     }
     if (input.pressed('KeyB') && roundsState.phase === 'buy') showBuy();
+    if (input.pressed('KeyM')) hud.setSound(sound.toggleMute());
     accumulator += dt;
     let steps = 0;
     while (accumulator >= FIXED_STEP && steps < 5) {
@@ -410,20 +465,34 @@ function runShot(name) {
     roundsState.frags = 1;
     roundsState.timer = 83;
     body.position.set(0, 0, 8);
-    bots.items[0].position.set(-4.5, 0, -2);
+    bots.items[0].position.set(-3.2, 0, 2.5);
     bots.items[0].state = 'engage';
     bots.items[0].lastKnown.set(0, 0, 8);
-    bots.items[1].position.set(4.8, 0, -4.5);
+    bots.items[1].position.set(4.5, 0, -1.5);
     bots.items[1].state = 'engage';
     bots.items[1].lastKnown.set(0, 0, 8);
     settle(10);
-    aimAt(new THREE.Vector3(-4.5, 1.2, -2));
+    aimAt(new THREE.Vector3(-3.2, 1.2, 2.5));
     for (let round = 0; round < 3; round += 1) {
       shoot(0);
       settle(6);
     }
     settle(8);
     body.health = 100;
+    syncHud();
+    // One last shot right before the capture, so the cover shows the muzzle
+    // flash and the tracer mid-flight.
+    shoot(0);
+  } else if (name === 'buy') {
+    roundsState.round = 2;
+    roundsState.playerWins = 1;
+    roundsState.money = 900;
+    roundsState.frags = 0;
+    roundsState.timer = 100;
+    body.position.set(0, 0, 14);
+    settle(10);
+    aimAt(new THREE.Vector3(0, 2, -11));
+    hud.showOverlay('buy', { round: 2, money: 900, ownedSmg: false, frags: 0 });
     syncHud();
   } else if (name === 'bomb') {
     roundsState.round = 2;
@@ -447,6 +516,12 @@ function runShot(name) {
     roundsState.botWins = 1;
     roundsState.matchOver = true;
     roundsState.matchWon = true;
+    roundsState.history = [
+      { round: 1, won: true, message: 'All four defenders are down.' },
+      { round: 2, won: false, message: 'You were eliminated.' },
+      { round: 3, won: true, message: 'Charge detonated at site A.' },
+      { round: 4, won: true, message: 'All four defenders are down.' },
+    ];
     bots.items[0].alive = false;
     bots.items[0].state = 'dead';
     bots.items[0].fall = 1;
@@ -455,7 +530,7 @@ function runShot(name) {
     body.position.set(0, 0, 6);
     settle(10);
     aimAt(new THREE.Vector3(-3, 1, -1));
-    hud.showOverlay('match', { won: true, playerWins: 3, botWins: 1 });
+    hud.showOverlay('match', { won: true, playerWins: 3, botWins: 1, history: roundsState.history });
     syncHud();
   }
   paintTwiceThenReady();
@@ -484,6 +559,7 @@ window.addEventListener('resize', () => {
 
 syncCamera();
 syncHud();
+hud.setSound(false);
 if (shot) runShot(shot);
 else {
   roundsState.phase = 'start';

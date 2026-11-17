@@ -11,17 +11,35 @@ import { WAYPOINTS } from './world.js';
 const HEALTH = 100;
 const WALK_SPEED = 3.4;
 const STRAFE_SPEED = 2.2;
-const VISION_RANGE = 27;
 const VISION_HALF_ANGLE = 0.96;
 const HEAR_RADIUS = 26;
 const BURST_MIN = 3;
 const BURST_MAX = 5;
 const SHOT_GAP = 0.16;
-const BURST_PAUSE = 1.15;
 
 const BODY_MATERIAL = new THREE.MeshStandardMaterial({ color: new THREE.Color('#7a4a3a'), roughness: 0.65, metalness: 0.1 });
 const VISOR_MATERIAL = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.amber), roughness: 0.4, metalness: 0.2, emissive: new THREE.Color(PALETTE.amber), emissiveIntensity: 0.35 });
 const DARK_MATERIAL = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.steel), roughness: 0.85 });
+
+// Three defender archetypes, one job each: the patrol Defender holds a site,
+// the Rusher closes distance fast with a wild SMG, the Marksman holds long
+// sightlines and hits hard but reacts slowly. The visor colour tells the
+// player which one it is at a glance.
+const ARCHETYPES = {
+  patrol: { label: 'Defender', visor: PALETTE.amber, speed: 1, damage: 1, vision: 27, reaction: [0.7, 1.2], burstPause: 1.15, spread: 0.03 },
+  rusher: { label: 'Rusher', visor: PALETTE.rust, speed: 1.35, damage: 0.8, vision: 20, reaction: [0.45, 0.8], burstPause: 0.8, spread: 0.045 },
+  marksman: { label: 'Marksman', visor: PALETTE.signal, speed: 0.7, damage: 1.5, vision: 34, reaction: [1.0, 1.6], burstPause: 1.5, spread: 0.02 },
+};
+
+// The defenders get tougher as the match goes on: faster reactions, harder
+// hits and quicker feet with every round.
+function scaleBotDifficultyForRound(round) {
+  return {
+    reaction: Math.max(0.6, 1 - 0.06 * (round - 1)),
+    damage: 1 + 0.08 * (round - 1),
+    speed: 1 + 0.05 * (round - 1),
+  };
+}
 
 const TORSO_GEO = new THREE.BoxGeometry(0.54, 0.8, 0.32);
 const HEAD_GEO = new THREE.SphereGeometry(0.16, 14, 10);
@@ -41,20 +59,24 @@ export function createBots(scene, colliders, shootables, random) {
   const head = new THREE.Vector3();
 
   const spawns = [
-    { x: -14, z: -11, route: [0, 1, 2, 3] },
-    { x: -10, z: -6, route: [3, 2, 1, 0] },
-    { x: 14, z: -11, route: [4, 5, 6, 7] },
-    { x: 10, z: -6, route: [7, 6, 5, 4] },
+    { x: -14, z: -11, route: [0, 1, 2, 3], archetype: 'patrol' },
+    { x: -10, z: -6, route: [3, 2, 1, 0], archetype: 'rusher' },
+    { x: 14, z: -11, route: [4, 5, 6, 7], archetype: 'marksman' },
+    { x: 10, z: -6, route: [7, 6, 5, 4], archetype: 'patrol' },
   ];
 
   for (let index = 0; index < spawns.length; index += 1) {
     const spawn = spawns[index];
+    const archetype = ARCHETYPES[spawn.archetype];
+    const visorMaterial = VISOR_MATERIAL.clone();
+    visorMaterial.color.set(new THREE.Color(archetype.visor));
+    visorMaterial.emissive.set(new THREE.Color(archetype.visor));
     const group = new THREE.Group();
     group.position.set(spawn.x, 0, spawn.z);
 
     const torso = new THREE.Mesh(TORSO_GEO, BODY_MATERIAL);
     torso.position.y = 1.05;
-    const headMesh = new THREE.Mesh(HEAD_GEO, VISOR_MATERIAL);
+    const headMesh = new THREE.Mesh(HEAD_GEO, visorMaterial);
     headMesh.position.y = 1.6;
     const legL = new THREE.Mesh(LEG_GEO, DARK_MATERIAL);
     legL.position.set(-0.14, 0.36, 0);
@@ -74,6 +96,10 @@ export function createBots(scene, colliders, shootables, random) {
     const item = {
       id: index,
       group, torso, headMesh,
+      archetype: spawn.archetype,
+      label: archetype.label,
+      visionRange: archetype.vision,
+      difficulty: scaleBotDifficultyForRound(1),
       health: HEALTH, alive: true,
       position: group.position,
       yaw: Math.PI,
@@ -108,7 +134,7 @@ export function createBots(scene, colliders, shootables, random) {
     eye.set(bot.position.x, 1.55, bot.position.z);
     toTarget.set(playerPos.x - eye.x, playerEye - 1.55, playerPos.z - eye.z);
     const distance = toTarget.length();
-    if (distance > VISION_RANGE) return false;
+    if (distance > bot.visionRange) return false;
     toTarget.normalize();
     const facing = Math.sin(bot.yaw) * -toTarget.x + Math.cos(bot.yaw) * -toTarget.z;
     if (facing < Math.cos(VISION_HALF_ANGLE)) return false;
@@ -173,7 +199,8 @@ export function createBots(scene, colliders, shootables, random) {
           if (bot.state !== 'engage') {
             bot.state = 'engage';
             bot.burstLeft = 0;
-            bot.pauseTimer = 0.7 + random() * 0.5;
+            const react = ARCHETYPES[bot.archetype].reaction;
+            bot.pauseTimer = (react[0] + random() * (react[1] - react[0])) * bot.difficulty.reaction;
           }
         } else if (bot.state === 'engage') {
           bot.state = 'alert';
@@ -189,16 +216,16 @@ export function createBots(scene, colliders, shootables, random) {
 
       if (bot.state === 'patrol') {
         const target = WAYPOINTS[bot.route[bot.routeIndex]];
-        if (moveToward(bot, target, dt, WALK_SPEED)) {
+        if (moveToward(bot, target, dt, WALK_SPEED * ARCHETYPES[bot.archetype].speed * bot.difficulty.speed)) {
           bot.routeIndex = (bot.routeIndex + 1) % bot.route.length;
         }
       } else if (bot.state === 'alert') {
-        if (moveToward(bot, bot.lastKnown, dt, WALK_SPEED * 1.15)) {
+        if (moveToward(bot, bot.lastKnown, dt, WALK_SPEED * 1.15 * ARCHETYPES[bot.archetype].speed * bot.difficulty.speed)) {
           bot.state = 'patrol';
         }
       } else if (bot.state === 'defuse' && bomb) {
         const site = bomb.siteCenter;
-        if (moveToward(bot, { x: site.x, z: site.z }, dt, WALK_SPEED * 1.2)) {
+        if (moveToward(bot, { x: site.x, z: site.z }, dt, WALK_SPEED * 1.2 * ARCHETYPES[bot.archetype].speed * bot.difficulty.speed)) {
           bot.defuseLeft += dt;
           bot.yaw = Math.atan2(-(site.x - bot.position.x), -(site.z - bot.position.z));
           if (bot.defuseLeft >= 3.5) bomb.defused = true;
@@ -215,8 +242,9 @@ export function createBots(scene, colliders, shootables, random) {
         }
         const sideX = Math.cos(bot.yaw) * bot.strafeDir;
         const sideZ = -Math.sin(bot.yaw) * bot.strafeDir;
-        const nx = bot.position.x + sideX * STRAFE_SPEED * dt;
-        const nz = bot.position.z + sideZ * STRAFE_SPEED * dt;
+        const strafe = STRAFE_SPEED * ARCHETYPES[bot.archetype].speed;
+        const nx = bot.position.x + sideX * strafe * dt;
+        const nz = bot.position.z + sideZ * strafe * dt;
         if (!overlaps(nx, bot.position.z)) bot.position.x = nx;
         if (!overlaps(bot.position.x, nz)) bot.position.z = nz;
 
@@ -226,9 +254,9 @@ export function createBots(scene, colliders, shootables, random) {
           if (bot.shotTimer <= 0) {
             bot.shotTimer = SHOT_GAP;
             bot.burstLeft -= 1;
-            if (bot.burstLeft === 0) bot.pauseTimer = BURST_PAUSE;
+            if (bot.burstLeft === 0) bot.pauseTimer = ARCHETYPES[bot.archetype].burstPause;
             // Hitscan with spread: accuracy falls with distance and target speed.
-            const spread = 0.03 + distance * 0.002 + player.speed * 0.005;
+            const spread = ARCHETYPES[bot.archetype].spread + distance * 0.002 + player.speed * 0.005;
             eye.set(bot.position.x, 1.5, bot.position.z);
             dir.set(playerPos.x - eye.x, playerEye - 1.5, playerPos.z - eye.z).normalize();
             dir.x += (random() * 2 - 1) * spread;
@@ -246,12 +274,13 @@ export function createBots(scene, colliders, shootables, random) {
               shotHead = closestDistance(eye, dir, head) < 0.26;
               const hitBody = closestDistance(eye, dir, chest) < 0.5;
               if (shotHead || hitBody) {
-                shotDamage = shotHead ? 22 : 9 + Math.floor(random() * 5);
+                const base = shotHead ? 22 : 9 + Math.floor(random() * 5);
+                shotDamage = Math.round(base * ARCHETYPES[bot.archetype].damage * bot.difficulty.damage);
               }
             }
             if (onBotShot) onBotShot(shotDamage, shotHead, bot);
           }
-        } else if (bot.pauseTimer <= 0 && distance < VISION_RANGE) {
+        } else if (bot.pauseTimer <= 0 && distance < bot.visionRange) {
           bot.burstLeft = BURST_MIN + Math.floor(random() * (BURST_MAX - BURST_MIN + 1));
           bot.shotTimer = 0;
         }
@@ -272,11 +301,12 @@ export function createBots(scene, colliders, shootables, random) {
     return Math.hypot(cx, cy, cz);
   }
 
-  function reset() {
+  function reset(round = 1) {
     for (const bot of items) {
       bot.health = HEALTH;
       bot.alive = true;
       bot.state = 'patrol';
+      bot.difficulty = scaleBotDifficultyForRound(round);
       bot.routeIndex = bot.id % 2 === 0 ? 0 : 2;
       bot.position.copy(bot.home);
       bot.yaw = Math.PI;

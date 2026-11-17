@@ -26,6 +26,8 @@ export function createHud() {
   const banner = el('banner');
   const bannerTitle = el('banner-title');
   const bannerSub = el('banner-sub');
+  const matchHistory = el('match-history');
+  const soundValue = el('sound-value');
 
   let hitTimer = 0;
   let damageTimer = 0;
@@ -102,6 +104,9 @@ export function createHud() {
       lastWeapon = name;
       weaponName.textContent = name;
     },
+    setSound(muted) {
+      soundValue.textContent = muted ? 'SOUND OFF (M)' : 'SOUND ON (M)';
+    },
     setSpread(px) {
       crosshair.style.setProperty('--gap', `${Math.round(px)}px`);
     },
@@ -132,9 +137,11 @@ export function createHud() {
     },
     showOverlay(mode, data = {}) {
       buyPanel.hidden = true;
+      matchHistory.hidden = true;
+      matchHistory.textContent = '';
       if (mode === 'start') {
         title.textContent = 'RELAY YARD';
-        copy.textContent = 'A tactical FPS at a decommissioned relay station. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out. First to 3 rounds takes the match.';
+        copy.textContent = 'A tactical FPS at a decommissioned relay station. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out. First to 3 rounds takes the match. Three defender types — patrolling Defenders, rushing Rushers, long-range Marksmen — get tougher every round.';
         play.textContent = 'Click to play';
       } else if (mode === 'paused') {
         title.textContent = 'RELAY YARD';
@@ -158,6 +165,12 @@ export function createHud() {
         title.textContent = data.won ? 'MATCH WON — RELAY YARD IS YOURS' : 'MATCH LOST';
         copy.textContent = `Final score: you ${data.playerWins} — ${data.botWins} defenders. ${data.won ? 'The relay station falls silent. Well played.' : 'The defenders hold the yard. Run it back.'}`;
         play.textContent = 'Play again';
+        for (const row of data.history ?? []) {
+          const line = document.createElement('div');
+          line.textContent = `ROUND ${row.round} — ${row.won ? 'WON' : 'LOST'} — ${row.message}`;
+          matchHistory.appendChild(line);
+        }
+        matchHistory.hidden = (data.history ?? []).length === 0;
       }
       overlay.hidden = false;
       play.focus();

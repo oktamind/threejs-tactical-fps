@@ -76,6 +76,32 @@ export function createWorld(scene) {
   box(1.4, 1.1, 1.4, -17.2, 0.55, -9.6, 'steel');
   box(1.4, 1.1, 1.4, -10.8, 0.55, -12.6, 'steel');
   box(2.2, 1.1, 1.2, -17.4, 0.55, -13.8, 'steel');
+  // The radar dish on the mast sweeps the yard, and a red beacon blinks on
+  // the masthead: the yard's two moving landmarks, visible from anywhere.
+  const dish = new THREE.Group();
+  dish.position.set(-14, 9.2, -13.5);
+  const dishCone = new THREE.Mesh(
+    new THREE.ConeGeometry(1.1, 0.5, 20, 1, true),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.steel), roughness: 0.5, metalness: 0.5, side: THREE.DoubleSide }),
+  );
+  dishCone.rotation.x = -Math.PI / 3;
+  dishCone.position.y = 0.3;
+  dish.add(dishCone);
+  const dishArm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.12, 0.9),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.steel), roughness: 0.5, metalness: 0.5 }),
+  );
+  dishArm.position.set(0, 0.1, 0.4);
+  dish.add(dishArm);
+  group.add(dish);
+  const beaconMaterial = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.rust), roughness: 0.4, emissive: new THREE.Color(PALETTE.rust), emissiveIntensity: 1 });
+  const beaconA = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), beaconMaterial);
+  beaconA.position.set(-14, 9.9, -13.5);
+  group.add(beaconA);
+  const beaconB = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), beaconMaterial.clone());
+  beaconB.position.set(14.5, 3.6, -13.8);
+  group.add(beaconB);
+  let worldTime = 0;
   // Site marker ring on the ground.
   const ringA = new THREE.Mesh(
     new THREE.RingGeometry(3.4, 3.8, 40),
@@ -157,5 +183,16 @@ export function createWorld(scene) {
   lamp(14, -6.4);
   lamp(0, 3.4);
 
-  return { colliders, shootables, group };
+  return {
+    colliders,
+    shootables,
+    group,
+    step(dt) {
+      worldTime += dt;
+      dish.rotation.y += dt * 0.8;
+      const blink = 0.5 + 0.5 * Math.sin(worldTime * 4);
+      beaconMaterial.emissiveIntensity = 0.3 + blink * 1.4;
+      beaconB.material.emissiveIntensity = 0.3 + (1 - blink) * 1.4;
+    },
+  };
 }

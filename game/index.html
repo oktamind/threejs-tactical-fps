@@ -72,6 +72,11 @@
 
   #rounds-value { position: fixed; top: 20px; left: 32px; font-family: var(--font-readout); font-size: 13px; color: var(--muted); }
   #frags-value { position: fixed; top: 44px; left: 32px; font-family: var(--font-readout); font-size: 13px; color: var(--muted); }
+  #sound-value { position: fixed; top: 68px; left: 32px; font-family: var(--font-readout); font-size: 13px; color: var(--muted); }
+
+  #match-history { margin: 0 0 20px; display: grid; gap: 6px; font-family: var(--font-readout); font-size: 13px; color: var(--muted); }
+  #match-history[hidden] { display: none; }
+  #match-history div { border-left: 2px solid var(--steel); padding-left: 10px; }
 
   #killfeed { position: fixed; top: 20px; right: 32px; display: grid; gap: 6px; justify-items: end; font-size: 13px; }
   #killfeed div { background: rgba(35, 42, 56, .8); padding: 5px 10px; border: 1px solid var(--steel); }
@@ -128,6 +133,7 @@
   </div>
   <div id="rounds-value">ROUND 1 · YOU 0 — 0 DEFENDERS</div>
   <div id="frags-value">Frag x0</div>
+  <div id="sound-value">SOUND ON (M)</div>
   <div id="killfeed"></div>
   <div id="banner" hidden><div id="banner-title"></div><div id="banner-sub"></div></div>
 </div>
@@ -136,6 +142,7 @@
   <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
     <h1 id="overlay-title">RELAY <span class="amber">YARD</span></h1>
     <p id="overlay-copy">A tactical FPS at a decommissioned relay station. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out. First to 3 rounds takes the match.</p>
+    <div id="match-history" hidden></div>
     <button id="play" type="button">Click to play</button>
     <div id="buy-panel" hidden>
       <div>Wallet: <span id="buy-money">$800</span></div>
@@ -147,7 +154,7 @@
       <li><kbd>Mouse</kbd> Look &nbsp; <kbd>Click</kbd> Fire</li>
       <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Rifle / SMG / Pistol &nbsp; <kbd>R</kbd> Reload</li>
       <li><kbd>E</kbd> Plant charge (hold, at a site) &nbsp; <kbd>G</kbd> Throw frag</li>
-      <li><kbd>B</kbd> Buy menu &nbsp; <kbd>Ctrl</kbd> Crouch &nbsp; <kbd>Space</kbd> Jump</li>
+      <li><kbd>B</kbd> Buy menu &nbsp; <kbd>Ctrl</kbd> Crouch &nbsp; <kbd>Space</kbd> Jump &nbsp; <kbd>M</kbd> Sound on/off</li>
     </ul>
   </section>
 </div>

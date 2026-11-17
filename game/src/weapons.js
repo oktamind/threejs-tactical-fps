@@ -63,10 +63,10 @@ export function createArsenal(camera) {
     camera.add(model);
     models[def.id] = model;
     const flash = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.26, 0.26),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.amber), transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
+      new THREE.PlaneGeometry(0.14, 0.14),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.amber), transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide }),
     );
-    flash.position.set(0.24, -0.18, -0.95);
+    flash.position.set(0.24, -0.16, -1.05);
     flash.visible = false;
     camera.add(flash);
     flashMeshes[def.id] = flash;
@@ -127,6 +127,9 @@ export function createArsenal(camera) {
       state.cooldown = def().gap;
       state.flash = MUZZLE_TIME;
       state.kick = def().kick;
+      // Light the flash at once, so the same frame that fires shows it.
+      flashMeshes[current].visible = true;
+      flashLights[current].intensity = 18;
     },
     takeRound() {
       if (ammo[current].mag <= 0) return false;

@@ -14,7 +14,7 @@ export function createRounds() {
     round: 1,
     playerWins: 0,
     botWins: 0,
-    money: 800,
+    money: 900,
     frags: 0,
     phase: 'buy',
     timer: ROUND_TIME,
@@ -23,6 +23,8 @@ export function createRounds() {
     matchWon: false,
     roundOver: false,
     roundWon: false,
+    // Every round's result, in order, for the match-results screen.
+    history: [],
   };
 
   return {
@@ -43,6 +45,7 @@ export function createRounds() {
       state.roundWon = won;
       state.message = message;
       state.phase = 'over';
+      state.history.push({ round: state.round, won, message });
       if (won) {
         state.playerWins += 1;
         state.money += 300;
@@ -86,7 +89,7 @@ export function createRounds() {
       state.round = 1;
       state.playerWins = 0;
       state.botWins = 0;
-      state.money = 800;
+      state.money = 900;
       state.frags = 0;
       state.phase = 'buy';
       state.timer = ROUND_TIME;
@@ -95,6 +98,7 @@ export function createRounds() {
       state.matchWon = false;
       state.roundOver = false;
       state.roundWon = false;
+      state.history = [];
     },
   };
 }
