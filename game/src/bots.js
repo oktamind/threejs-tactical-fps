@@ -23,13 +23,18 @@ const DARK_MATERIAL = new THREE.MeshStandardMaterial({ color: new THREE.Color(PA
 
 // Three defender archetypes, one job each: the patrol Defender holds a site,
 // the Rusher closes distance fast with a wild SMG, the Marksman holds long
-// sightlines and hits hard but reacts slowly. The visor colour tells the
-// player which one it is at a glance.
+// sightlines and hits hard but reacts slowly. The Warden is the boss of the
+// campaign's final round: a 500-HP heavy that walks slowly, sees far and
+// hits like a truck. The visor colour tells the player which one it is at a
+// glance.
 const ARCHETYPES = {
   patrol: { label: 'Defender', visor: PALETTE.amber, speed: 1, damage: 1, vision: 27, reaction: [0.7, 1.2], burstPause: 1.15, spread: 0.03 },
   rusher: { label: 'Rusher', visor: PALETTE.rust, speed: 1.35, damage: 0.8, vision: 20, reaction: [0.45, 0.8], burstPause: 0.8, spread: 0.045 },
   marksman: { label: 'Marksman', visor: PALETTE.signal, speed: 0.7, damage: 1.5, vision: 34, reaction: [1.0, 1.6], burstPause: 1.5, spread: 0.02 },
+  warden: { label: 'Warden', visor: '#d43d2a', speed: 0.55, damage: 2.2, vision: 40, reaction: [1.2, 1.8], burstPause: 1.8, spread: 0.015 },
 };
+
+export const WARDEN_HEALTH = 500;
 
 // The defenders get tougher as the match goes on: faster reactions, harder
 // hits and quicker feet with every round.
@@ -95,12 +100,13 @@ export function createBots(scene, colliders, shootables, random) {
 
     const item = {
       id: index,
-      group, torso, headMesh,
+      group, torso, headMesh, visorMaterial,
       archetype: spawn.archetype,
+      spawnArchetype: spawn.archetype,
       label: archetype.label,
       visionRange: archetype.vision,
       difficulty: scaleBotDifficultyForRound(1),
-      health: HEALTH, alive: true,
+      health: HEALTH, maxHealth: HEALTH, alive: true,
       position: group.position,
       yaw: Math.PI,
       state: 'patrol',
@@ -301,16 +307,30 @@ export function createBots(scene, colliders, shootables, random) {
     return Math.hypot(cx, cy, cz);
   }
 
-  function reset(round = 1) {
+  // A new round re-deals the defenders. In the campaign's boss round the
+  // third defender becomes the Warden: 500 HP, a 1.5x frame and a crimson
+  // visor. Later nights also scale difficulty as if they were later rounds.
+  function reset(round = 1, options = {}) {
+    const night = options.night ?? 1;
+    const bossRound = options.bossRound ?? false;
     for (const bot of items) {
-      bot.health = HEALTH;
+      const isWarden = bossRound && bot.id === 2;
+      bot.archetype = isWarden ? 'warden' : bot.spawnArchetype;
+      const archetype = ARCHETYPES[bot.archetype];
+      bot.label = archetype.label;
+      bot.visionRange = archetype.vision;
+      bot.maxHealth = isWarden ? WARDEN_HEALTH : HEALTH;
+      bot.health = bot.maxHealth;
       bot.alive = true;
       bot.state = 'patrol';
-      bot.difficulty = scaleBotDifficultyForRound(round);
+      bot.difficulty = scaleBotDifficultyForRound(round + (night - 1) * 2);
       bot.routeIndex = bot.id % 2 === 0 ? 0 : 2;
       bot.position.copy(bot.home);
       bot.yaw = Math.PI;
       bot.group.rotation.set(0, bot.yaw, 0);
+      bot.group.scale.setScalar(isWarden ? 1.5 : 1);
+      bot.visorMaterial.color.set(new THREE.Color(archetype.visor));
+      bot.visorMaterial.emissive.set(new THREE.Color(archetype.visor));
       bot.lastKnown.set(0, 0, 0);
       bot.burstLeft = 0;
       bot.pauseTimer = 0;
@@ -326,6 +346,10 @@ export function createBots(scene, colliders, shootables, random) {
     hear,
     step,
     reset,
+    // The live boss, or null when there is none or it is already down.
+    boss() {
+      return items.find((bot) => bot.archetype === 'warden' && bot.alive) ?? null;
+    },
     aliveCount() {
       return items.filter((bot) => bot.alive).length;
     },

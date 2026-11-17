@@ -15,6 +15,7 @@ import { createBots } from './bots.js';
 import { createObjective } from './objective.js';
 import { createRounds } from './rounds.js';
 import { createArmor } from './armor.js';
+import { createCampaign, NIGHT_TITLES } from './campaign.js';
 import { createHud } from './hud.js';
 import { createSoundEffects } from './sound.js';
 
@@ -44,6 +45,7 @@ const bots = createBots(scene, world.colliders, world.shootables, random);
 const objective = createObjective(scene);
 const rounds = createRounds();
 const armor = createArmor();
+const campaign = createCampaign();
 const hud = createHud();
 const sound = createSoundEffects();
 const player = createPlayer(world.colliders, PLAYER_SPAWN);
@@ -91,6 +93,7 @@ function stepTracers(dt) {
 
 const body = player.state;
 const roundsState = rounds.state;
+const campaignState = campaign.state;
 const bombState = objective.state;
 let elapsed = 0;
 let frozen = false;
@@ -154,10 +157,16 @@ function blastDamage(center, radius, damage) {
 }
 
 function onBotKilled(bot) {
-  rounds.addKillReward();
-  hud.feed(`${bot.label} ${bot.id + 1} eliminated  +$300`, true);
+  // The Warden pays a $1000 bounty and gets its own line in the feed.
+  if (bot.archetype === 'warden') {
+    rounds.addKillReward(1000);
+    hud.feed('RELAY WARDEN DOWN  +$1000', true);
+  } else {
+    rounds.addKillReward();
+    hud.feed(`${bot.label} ${bot.id + 1} eliminated  +$300`, true);
+  }
   if (bots.aliveCount() === 0 && roundsState.phase === 'live') {
-    endRound(true, 'All four defenders are down.');
+    endRound(true, campaign.isBossRound(roundsState.round) ? 'The Relay Warden is down.' : 'All four defenders are down.');
   }
 }
 
@@ -227,7 +236,9 @@ function syncHud() {
   hud.setTimer(roundsState.timer);
   hud.setMoney(roundsState.money);
   hud.setFrags(roundsState.frags);
-  hud.setRounds(roundsState.playerWins, roundsState.botWins, roundsState.round);
+  hud.setRounds(roundsState.playerWins, roundsState.botWins, roundsState.round, campaignState.night);
+  const boss = bots.boss();
+  hud.setBoss(boss ? boss.health : -1, boss ? boss.maxHealth : 0);
   hud.setSpread(2 + arsenal.spread(player.groundSpeed()) * 900);
   if (bombState.planted) {
     hud.setBomb(`CHARGE PLANTED — 0:${String(Math.max(0, Math.ceil(bombState.fuseLeft))).padStart(2, '0')}`);
@@ -243,17 +254,28 @@ function syncHud() {
   syncHudAmmo();
 }
 
-function startMatch() {
+// The campaign starts over: fresh wallet, fresh arsenal, night 1. Night 1
+// opens straight into the buy menu — the start screen already explained the
+// campaign, so there is no separate intro for it.
+function startCampaign() {
+  campaign.reset();
   rounds.reset();
   armor.reset();
-  bots.reset(1);
-  objective.reset();
-  grenade.reset();
-  player.reset(PLAYER_SPAWN);
   arsenal.owned.clear();
   arsenal.owned.add('rifle');
   arsenal.owned.add('pistol');
   arsenal.select('rifle');
+  arsenal.refillAll();
+  startNight(1, true);
+}
+
+function startNight(night, skipIntro = false) {
+  // A new night keeps the money earned so far; the match itself is fresh.
+  rounds.reset(true);
+  bots.reset(1, { night, bossRound: false });
+  objective.reset();
+  grenade.reset();
+  player.reset(PLAYER_SPAWN);
   arsenal.refillAll();
   elapsed = 0;
   shake = 0;
@@ -261,7 +283,13 @@ function startMatch() {
   wasPlanted = false;
   lastPlantBeep = 0;
   hud.hideBanner();
-  showBuy();
+  if (skipIntro) {
+    showBuy();
+  } else {
+    roundsState.phase = 'night';
+    hud.showOverlay('night', { night });
+  }
+  syncHud();
 }
 
 function showBuy() {
@@ -278,19 +306,28 @@ function showBuy() {
 
 function startRound() {
   rounds.startRound();
-  bots.reset(roundsState.round);
+  const bossRound = campaign.isBossRound(roundsState.round);
+  bots.reset(roundsState.round, { night: campaignState.night, bossRound });
   objective.reset();
   grenade.reset();
   player.reset(PLAYER_SPAWN);
   arsenal.refillAll();
   hud.hideOverlay();
-  hud.showBanner(
-    `ROUND ${roundsState.round}`,
-    roundsState.round > 1
-      ? 'Defenders push harder — faster reactions, heavier fire'
-      : 'Plant the charge or eliminate all defenders',
-    2600,
-  );
+  if (bossRound) {
+    hud.showBanner(
+      'ROUND 3 — THE RELAY WARDEN',
+      'A 500-HP Warden walks site B. Bring it down — $1000 bounty',
+      3200,
+    );
+  } else {
+    hud.showBanner(
+      `ROUND ${roundsState.round}`,
+      roundsState.round > 1
+        ? 'Defenders push harder — faster reactions, heavier fire'
+        : 'Plant the charge or eliminate all defenders',
+      2600,
+    );
+  }
   syncHud();
 }
 
@@ -302,12 +339,42 @@ function endRound(won, message) {
   if (document.pointerLockElement) document.exitPointerLock();
   setTimeout(() => {
     if (roundsState.matchOver) {
-      hud.showOverlay('match', {
-        won: roundsState.matchWon,
-        playerWins: roundsState.playerWins,
-        botWins: roundsState.botWins,
-        history: roundsState.history,
-      });
+      // A match ends a night, not the game: win and the campaign advances,
+      // lose and the whole shift is over.
+      if (roundsState.matchWon) {
+        const clearedNight = campaignState.night;
+        campaign.advance();
+        if (campaignState.over) {
+          roundsState.phase = 'campaign';
+          hud.showOverlay('campaign', {
+            won: true,
+            nightsWon: 3,
+            playerWins: roundsState.playerWins,
+            botWins: roundsState.botWins,
+            history: roundsState.history,
+          });
+        } else {
+          roundsState.phase = 'nightclear';
+          hud.showOverlay('nightclear', {
+            night: clearedNight,
+            nextNight: campaignState.night,
+            playerWins: roundsState.playerWins,
+            botWins: roundsState.botWins,
+            money: roundsState.money,
+          });
+        }
+      } else {
+        campaign.fail();
+        roundsState.phase = 'campaign';
+        hud.showOverlay('campaign', {
+          won: false,
+          nightsWon: campaignState.nightsWon,
+          night: campaignState.night,
+          playerWins: roundsState.playerWins,
+          botWins: roundsState.botWins,
+          history: roundsState.history,
+        });
+      }
     } else {
       hud.showOverlay('round', {
         won,
@@ -338,14 +405,16 @@ hud.onPlay(() => {
     startRound();
     input.requestLock();
   } else if (roundsState.phase === 'over') {
-    if (roundsState.matchOver) {
-      startMatch();
-    } else {
-      rounds.nextRound();
-      showBuy();
-    }
-  } else if (roundsState.phase === 'start') {
+    rounds.nextRound();
     showBuy();
+  } else if (roundsState.phase === 'start') {
+    startCampaign();
+  } else if (roundsState.phase === 'night') {
+    showBuy();
+  } else if (roundsState.phase === 'nightclear') {
+    startNight(campaignState.night);
+  } else if (roundsState.phase === 'campaign') {
+    startCampaign();
   } else if (roundsState.phase === 'live') {
     input.requestLock();
   }
@@ -500,28 +569,41 @@ function runShot(name) {
     hud.showOverlay('start');
     syncHud();
   } else if (name === 'firefight') {
-    roundsState.round = 2;
-    roundsState.playerWins = 1;
-    roundsState.money = 1100;
+    // The cover is the boss round: night 3, round 3, the Warden walking the
+    // yard with two defenders and one already down. The boss bar shows the
+    // Warden at partial health — three rifle hits on it before the capture.
+    campaignState.night = 3;
+    roundsState.round = 3;
+    roundsState.playerWins = 2;
+    roundsState.money = 1400;
     roundsState.frags = 1;
     roundsState.timer = 83;
+    bots.reset(3, { night: 3, bossRound: true });
     body.position.set(0, 0, 8);
-    bots.items[0].position.set(-3.2, 0, 2.5);
+    bots.items[2].position.set(-3, 0, 1.5);
+    bots.items[2].state = 'engage';
+    bots.items[2].lastKnown.set(0, 0, 8);
+    // The Warden holds fire during the staging window: its bursts hit
+    // ~2.2x as hard, and three defenders at once could drop the player
+    // before the capture even through the vest.
+    bots.items[2].pauseTimer = 5;
+    bots.items[0].position.set(-6.5, 0, -0.5);
     bots.items[0].state = 'engage';
     bots.items[0].lastKnown.set(0, 0, 8);
     bots.items[1].position.set(4.5, 0, -1.5);
     bots.items[1].state = 'engage';
     bots.items[1].lastKnown.set(0, 0, 8);
-    // A third defender — the Marksman — holds the left lane, so the cover
-    // shows the fight on both sides of the yard. Three defenders shooting
-    // at once can drop the player before the capture, so the staged player
-    // wears a vest: it also shows the armor bar in the cover.
-    bots.items[2].position.set(-6.5, 0, -0.5);
-    bots.items[2].state = 'engage';
-    bots.items[2].lastKnown.set(0, 0, 8);
+    bots.items[3].alive = false;
+    bots.items[3].state = 'dead';
+    bots.items[3].fall = 1;
+    bots.items[3].group.rotation.x = -1.5;
+    bots.items[3].position.set(2, 0, 4);
+    // Four defenders shooting at once can drop the player before the
+    // capture, so the staged player wears a vest: it also shows the armor
+    // bar in the cover.
     armor.add();
     settle(10);
-    aimAt(new THREE.Vector3(-3.2, 1.2, 2.5));
+    aimAt(new THREE.Vector3(-3, 1.8, 1.5));
     for (let round = 0; round < 3; round += 1) {
       shoot(0);
       settle(6);
@@ -560,6 +642,12 @@ function runShot(name) {
     hud.setBomb('PLANTING 55%');
     syncHud();
   } else if (name === 'end') {
+    // The end shot is the campaign-complete screen: all three nights
+    // survived, the Warden down in the yard behind the panel.
+    campaignState.night = 3;
+    campaignState.nightsWon = 3;
+    campaignState.over = true;
+    campaignState.won = true;
     roundsState.round = 4;
     roundsState.playerWins = 3;
     roundsState.botWins = 1;
@@ -568,18 +656,19 @@ function runShot(name) {
     roundsState.history = [
       { round: 1, won: true, message: 'All four defenders are down.' },
       { round: 2, won: false, message: 'You were eliminated.' },
-      { round: 3, won: true, message: 'Charge detonated at site A.' },
+      { round: 3, won: true, message: 'The Relay Warden is down.' },
       { round: 4, won: true, message: 'All four defenders are down.' },
     ];
-    bots.items[0].alive = false;
-    bots.items[0].state = 'dead';
-    bots.items[0].fall = 1;
-    bots.items[0].group.rotation.x = -1.5;
-    bots.items[0].position.set(-3, 0, -1);
+    bots.reset(3, { night: 3, bossRound: true });
+    bots.items[2].alive = false;
+    bots.items[2].state = 'dead';
+    bots.items[2].fall = 1;
+    bots.items[2].group.rotation.x = -1.5;
+    bots.items[2].position.set(-3, 0, -1);
     body.position.set(0, 0, 6);
     settle(10);
     aimAt(new THREE.Vector3(-3, 1, -1));
-    hud.showOverlay('match', { won: true, playerWins: 3, botWins: 1, history: roundsState.history });
+    hud.showOverlay('campaign', { won: true, nightsWon: 3, playerWins: 3, botWins: 1, history: roundsState.history });
     syncHud();
   }
   paintTwiceThenReady();

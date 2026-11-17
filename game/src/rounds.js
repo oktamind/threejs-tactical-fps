@@ -66,8 +66,8 @@ export function createRounds() {
       state.roundWon = false;
       state.message = '';
     },
-    addKillReward() {
-      state.money += 300;
+    addKillReward(amount = 300) {
+      state.money += amount;
     },
     buyFrag() {
       if (state.money < PRICES.frag || state.frags >= 2) return false;
@@ -95,11 +95,13 @@ export function createRounds() {
       state.frags -= 1;
       return true;
     },
-    reset() {
+    // A new night keeps the money earned so far — the campaign is one long
+    // economy — but frags are restocked fresh for each match.
+    reset(keepMoney = false) {
       state.round = 1;
       state.playerWins = 0;
       state.botWins = 0;
-      state.money = 900;
+      if (!keepMoney) state.money = 900;
       state.frags = 0;
       state.phase = 'buy';
       state.timer = ROUND_TIME;

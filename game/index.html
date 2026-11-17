@@ -68,6 +68,12 @@
   #scope::before, #scope::after { content: ''; position: absolute; background: rgba(232, 228, 218, .75); }
   #scope::before { left: 50%; top: calc(50% - 46px); width: 1px; height: 92px; transform: translateX(-50%); }
   #scope::after { top: 50%; left: calc(50% - 46px); height: 1px; width: 92px; transform: translateY(-50%); }
+  #boss-bar { position: fixed; top: 62px; left: 50%; transform: translateX(-50%); width: 420px; text-align: center; }
+  #boss-bar[hidden] { display: none; }
+  #boss-label { font-size: 11px; letter-spacing: .22em; color: #d43d2a; }
+  #boss-track { height: 10px; background: var(--concrete); border: 1px solid #d43d2a; margin-top: 3px; }
+  #boss-fill { height: 100%; width: 100%; background: #d43d2a; }
+  #boss-value { font-family: var(--font-readout); font-size: 13px; color: #d43d2a; margin-top: 2px; }
 
   #ammo { position: fixed; right: 32px; bottom: 24px; text-align: right; }
   #ammo-mag { font-family: var(--font-readout); font-size: 56px; line-height: 1; }
@@ -129,6 +135,11 @@
   <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
   <div id="damage"></div>
   <div id="scope" hidden></div>
+  <div id="boss-bar" hidden>
+    <div id="boss-label">RELAY WARDEN</div>
+    <div id="boss-track"><div id="boss-fill"></div></div>
+    <div id="boss-value">500 / 500</div>
+  </div>
   <div id="armor" hidden>
     <div id="armor-label">ARMOR</div>
     <div id="armor-bar"><div id="armor-fill"></div></div>

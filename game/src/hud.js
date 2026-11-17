@@ -32,6 +32,9 @@ export function createHud() {
   const armorValue = el('armor-value');
   const armorRow = el('armor');
   const scope = el('scope');
+  const bossBar = el('boss-bar');
+  const bossFill = el('boss-fill');
+  const bossValue = el('boss-value');
 
   let hitTimer = 0;
   let damageTimer = 0;
@@ -39,6 +42,7 @@ export function createHud() {
   let lastAmmo = '';
   let lastHealth = -1;
   let lastArmor = -1;
+  let lastBoss = '';
   let lastTimer = -1;
   let lastMoney = -1;
   let lastRounds = '';
@@ -107,11 +111,23 @@ export function createHud() {
       lastFrags = value;
       fragsValue.textContent = `Frag x${value}`;
     },
-    setRounds(playerWins, botWins, round) {
-      const key = `${playerWins}-${botWins}-${round}`;
+    // The Warden's health bar, top centre. Hidden whenever there is no live
+    // boss — pass a negative hp to hide it.
+    setBoss(hp, max) {
+      const key = hp < 0 ? 'off' : `${Math.max(0, Math.round(hp))}/${max}`;
+      if (key === lastBoss) return;
+      lastBoss = key;
+      bossBar.hidden = hp < 0;
+      if (hp >= 0) {
+        bossValue.textContent = `${Math.max(0, Math.round(hp))} / ${max}`;
+        bossFill.style.width = `${Math.max(0, Math.min(100, (hp / max) * 100))}%`;
+      }
+    },
+    setRounds(playerWins, botWins, round, night = 1) {
+      const key = `${night}-${playerWins}-${botWins}-${round}`;
       if (key === lastRounds) return;
       lastRounds = key;
-      roundsValue.textContent = `ROUND ${round} · YOU ${playerWins} — ${botWins} DEFENDERS`;
+      roundsValue.textContent = `NIGHT ${night} · ROUND ${round} · YOU ${playerWins} — ${botWins} DEFENDERS`;
     },
     setBomb(text) {
       if (text === lastBomb) return;
@@ -160,8 +176,31 @@ export function createHud() {
       matchHistory.textContent = '';
       if (mode === 'start') {
         title.textContent = 'RELAY YARD';
-        copy.textContent = 'A tactical FPS at a decommissioned relay station. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out. First to 3 rounds takes the match. Three defender types — patrolling Defenders, rushing Rushers, long-range Marksmen — get tougher every round.';
+        copy.textContent = 'A tactical FPS at a decommissioned relay station. Plant the charge at site A or B, or eliminate all four defenders, before the clock runs out. NIGHT SHIFT campaign: survive three nights — first to 3 rounds takes each night. Money, weapons and armor carry across nights, the defenders get tougher every night, and night 3 ends with the Relay Warden, a 500-HP boss. Three defender types — patrolling Defenders, rushing Rushers, long-range Marksmen — get tougher every round.';
         play.textContent = 'Click to play';
+      } else if (mode === 'night') {
+        const nightTitles = { 2: 'THE YARD GETS LOUDER', 3: 'THE WARDEN WAKES' };
+        title.textContent = `NIGHT ${data.night} — ${nightTitles[data.night] ?? ''}`;
+        copy.textContent = data.night === 3
+          ? 'The Relay Warden walks the yard in round 3: 500 HP, heavy fire, a $1000 bounty on its head. Your money, weapons and armor carry over — spend what you have, then survive this night and the yard is yours.'
+          : 'The defenders hit harder and react faster tonight. Your money, weapons and armor carry over — spend what you have before round 1.';
+        play.textContent = `Enter night ${data.night}`;
+      } else if (mode === 'nightclear') {
+        title.textContent = `NIGHT ${data.night} CLEARED`;
+        copy.textContent = `You took night ${data.night}, ${data.playerWins} — ${data.botWins}. $${data.money} and your arsenal carry into night ${data.nextNight}.`;
+        play.textContent = `Start night ${data.nextNight}`;
+      } else if (mode === 'campaign') {
+        title.textContent = data.won ? 'ALL THREE NIGHTS SURVIVED' : 'THE YARD HOLDS';
+        copy.textContent = data.won
+          ? `Nights cleared: 3 of 3. Final night: you ${data.playerWins} — ${data.botWins} defenders. The Warden is down, the relay station falls silent. Well played.`
+          : `Nights cleared: ${data.nightsWon} of 3. Night ${data.night} ended ${data.playerWins} — ${data.botWins}. The defenders hold the yard — run the whole shift again.`;
+        play.textContent = 'Run the campaign again';
+        for (const row of data.history ?? []) {
+          const line = document.createElement('div');
+          line.textContent = `ROUND ${row.round} — ${row.won ? 'WON' : 'LOST'} — ${row.message}`;
+          matchHistory.appendChild(line);
+        }
+        matchHistory.hidden = (data.history ?? []).length === 0;
       } else if (mode === 'paused') {
         title.textContent = 'RELAY YARD';
         copy.textContent = 'Paused. Click to resume.';
