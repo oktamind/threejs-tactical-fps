@@ -14,6 +14,7 @@ import { createGrenade } from './grenade.js';
 import { createBots } from './bots.js';
 import { createObjective } from './objective.js';
 import { createRounds } from './rounds.js';
+import { createArmor } from './armor.js';
 import { createHud } from './hud.js';
 import { createSoundEffects } from './sound.js';
 
@@ -42,6 +43,7 @@ const grenade = createGrenade(scene, world.colliders);
 const bots = createBots(scene, world.colliders, world.shootables, random);
 const objective = createObjective(scene);
 const rounds = createRounds();
+const armor = createArmor();
 const hud = createHud();
 const sound = createSoundEffects();
 const player = createPlayer(world.colliders, PLAYER_SPAWN);
@@ -161,10 +163,13 @@ function onBotKilled(bot) {
 
 function hurtPlayer(damage) {
   if (!body.alive || damage <= 0) return;
-  body.health -= damage;
+  // The vest eats 60% of the hit while it has points left; the rest reaches
+  // health. The armor bar shows what is left of it.
+  body.health -= armor.absorb(damage);
   shake = 0.35;
   hud.damageFlash();
   hud.setHealth(body.health);
+  hud.setArmor(armor.state.points);
   if (body.health <= 0) {
     body.health = 0;
     body.alive = false;
@@ -218,6 +223,7 @@ function syncHudAmmo() {
 
 function syncHud() {
   hud.setHealth(body.health);
+  hud.setArmor(armor.state.points);
   hud.setTimer(roundsState.timer);
   hud.setMoney(roundsState.money);
   hud.setFrags(roundsState.frags);
@@ -239,6 +245,7 @@ function syncHud() {
 
 function startMatch() {
   rounds.reset();
+  armor.reset();
   bots.reset(1);
   objective.reset();
   grenade.reset();
@@ -264,6 +271,7 @@ function showBuy() {
     money: roundsState.money,
     ownedSmg: arsenal.owned.has('smg'),
     ownedSniper: arsenal.owned.has('sniper'),
+    armor: armor.state.points,
     frags: roundsState.frags,
   });
 }
@@ -357,6 +365,15 @@ hud.onBuySniper(() => {
   if (rounds.buySniper()) {
     arsenal.buy('sniper');
     arsenal.select('sniper');
+    sound.buy();
+    showBuy();
+    syncHud();
+  }
+});
+
+hud.onBuyVest(() => {
+  if (rounds.buyVest()) {
+    armor.add();
     sound.buy();
     showBuy();
     syncHud();
@@ -458,6 +475,8 @@ function frame(now) {
       camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 10);
       camera.updateProjectionMatrix();
     }
+    // The scope vignette only appears when aiming with the Longshot.
+    hud.setScope(body.aiming && arsenal.current() === 'sniper' && roundsState.phase === 'live');
     syncCamera();
   }
   renderer.render(scene, camera);
@@ -493,6 +512,14 @@ function runShot(name) {
     bots.items[1].position.set(4.5, 0, -1.5);
     bots.items[1].state = 'engage';
     bots.items[1].lastKnown.set(0, 0, 8);
+    // A third defender — the Marksman — holds the left lane, so the cover
+    // shows the fight on both sides of the yard. Three defenders shooting
+    // at once can drop the player before the capture, so the staged player
+    // wears a vest: it also shows the armor bar in the cover.
+    bots.items[2].position.set(-6.5, 0, -0.5);
+    bots.items[2].state = 'engage';
+    bots.items[2].lastKnown.set(0, 0, 8);
+    armor.add();
     settle(10);
     aimAt(new THREE.Vector3(-3.2, 1.2, 2.5));
     for (let round = 0; round < 3; round += 1) {
@@ -514,7 +541,7 @@ function runShot(name) {
     body.position.set(0, 0, 14);
     settle(10);
     aimAt(new THREE.Vector3(0, 2, -11));
-    hud.showOverlay('buy', { round: 2, money: 1200, ownedSmg: false, ownedSniper: false, frags: 0 });
+    hud.showOverlay('buy', { round: 2, money: 1200, ownedSmg: false, ownedSniper: false, armor: 0, frags: 0 });
     syncHud();
   } else if (name === 'bomb') {
     roundsState.round = 2;

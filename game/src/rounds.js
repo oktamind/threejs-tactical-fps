@@ -7,7 +7,7 @@ export const ROUND_TIME = 100;
 export const ROUNDS_TO_WIN = 3;
 export const MAX_ROUNDS = 5;
 
-export const PRICES = { smg: 900, sniper: 1200, frag: 300 };
+export const PRICES = { smg: 900, sniper: 1200, vest: 500, frag: 300 };
 
 export function createRounds() {
   const state = {
@@ -83,6 +83,11 @@ export function createRounds() {
     buySniper() {
       if (state.money < PRICES.sniper) return false;
       state.money -= PRICES.sniper;
+      return true;
+    },
+    buyVest() {
+      if (state.money < PRICES.vest) return false;
+      state.money -= PRICES.vest;
       return true;
     },
     useFrag() {

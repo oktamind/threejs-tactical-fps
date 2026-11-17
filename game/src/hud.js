@@ -28,12 +28,17 @@ export function createHud() {
   const bannerSub = el('banner-sub');
   const matchHistory = el('match-history');
   const soundValue = el('sound-value');
+  const armorFill = el('armor-fill');
+  const armorValue = el('armor-value');
+  const armorRow = el('armor');
+  const scope = el('scope');
 
   let hitTimer = 0;
   let damageTimer = 0;
   let bannerTimer = 0;
   let lastAmmo = '';
   let lastHealth = -1;
+  let lastArmor = -1;
   let lastTimer = -1;
   let lastMoney = -1;
   let lastRounds = '';
@@ -60,6 +65,20 @@ export function createHud() {
       healthValue.textContent = String(value);
       healthFill.style.width = `${value}%`;
       healthFill.classList.toggle('low', value <= 30);
+    },
+    setArmor(points) {
+      const value = Math.max(0, Math.round(points));
+      if (value === lastArmor) return;
+      lastArmor = value;
+      armorRow.hidden = value <= 0;
+      armorValue.textContent = String(value);
+      armorFill.style.width = `${value}%`;
+    },
+    // The sniper's scope: a dark vignette with a fine crosshair, replacing
+    // the hip-fire crosshair while aiming down sights.
+    setScope(on) {
+      scope.hidden = !on;
+      crosshair.style.visibility = on ? 'hidden' : '';
     },
     setAmmo(mag, reserve, name) {
       const key = `${mag}/${reserve}/${name}`;
@@ -149,7 +168,7 @@ export function createHud() {
         play.textContent = 'Click to resume';
       } else if (mode === 'buy') {
         title.textContent = `ROUND ${data.round} — BUY PHASE`;
-        copy.textContent = `You have $${data.money}. Spend it before the round starts: SMG $900, frag grenade $300. Press B to close the shop and start the round.`;
+        copy.textContent = `You have $${data.money}. Spend it before the round starts: SMG $900, Longshot $1200, Kevlar vest $500, frag grenade $300. Press B to close the shop and start the round.`;
         play.textContent = 'Start round';
         buyPanel.hidden = false;
         el('buy-money').textContent = `$${data.money}`;
@@ -157,6 +176,8 @@ export function createHud() {
         el('buy-smg').textContent = data.ownedSmg ? 'PDW-9 SMG — OWNED' : 'Buy PDW-9 SMG — $900';
         el('buy-sniper').disabled = data.ownedSniper || data.money < 1200;
         el('buy-sniper').textContent = data.ownedSniper ? 'LR-8 Longshot — OWNED' : 'Buy LR-8 Longshot — $1200';
+        el('buy-vest').disabled = data.armor > 0 || data.money < 500;
+        el('buy-vest').textContent = data.armor > 0 ? `Kevlar vest — ARMOR ${Math.round(data.armor)}` : 'Buy Kevlar vest — $500';
         el('buy-frag').disabled = data.money < 300 || data.frags >= 2;
         el('buy-frag').textContent = `Buy frag grenade — $300 (${data.frags}/2)`;
       } else if (mode === 'round') {
@@ -188,6 +209,9 @@ export function createHud() {
     },
     onBuySniper(handler) {
       el('buy-sniper').addEventListener('click', handler);
+    },
+    onBuyVest(handler) {
+      el('buy-vest').addEventListener('click', handler);
     },
     onBuyFrag(handler) {
       el('buy-frag').addEventListener('click', handler);

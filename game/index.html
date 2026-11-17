@@ -57,6 +57,17 @@
   #health-fill.low { background: var(--rust); }
   #health-value { font-family: var(--font-readout); font-size: 28px; }
   #health-label { font-size: 11px; letter-spacing: .14em; color: var(--muted); }
+  #armor { position: fixed; left: 32px; bottom: 96px; width: 220px; }
+  #armor[hidden] { display: none; }
+  #armor-bar { height: 6px; background: var(--concrete); border: 1px solid var(--steel); }
+  #armor-fill { height: 100%; width: 100%; background: #7fa8c9; }
+  #armor-value { font-family: var(--font-readout); font-size: 20px; color: #7fa8c9; }
+  #armor-label { font-size: 11px; letter-spacing: .14em; color: var(--muted); }
+  #scope { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 50%, transparent 25%, rgba(2, 4, 8, .88) 30%, rgba(2, 4, 8, .94) 100%); }
+  #scope[hidden] { display: none; }
+  #scope::before, #scope::after { content: ''; position: absolute; background: rgba(232, 228, 218, .75); }
+  #scope::before { left: 50%; top: calc(50% - 46px); width: 1px; height: 92px; transform: translateX(-50%); }
+  #scope::after { top: 50%; left: calc(50% - 46px); height: 1px; width: 92px; transform: translateY(-50%); }
 
   #ammo { position: fixed; right: 32px; bottom: 24px; text-align: right; }
   #ammo-mag { font-family: var(--font-readout); font-size: 56px; line-height: 1; }
@@ -117,6 +128,12 @@
   <div id="crosshair"><i></i><i></i><i></i><i></i></div>
   <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
   <div id="damage"></div>
+  <div id="scope" hidden></div>
+  <div id="armor" hidden>
+    <div id="armor-label">ARMOR</div>
+    <div id="armor-bar"><div id="armor-fill"></div></div>
+    <div id="armor-value">0</div>
+  </div>
   <div id="health">
     <div id="health-label">HEALTH</div>
     <div id="health-bar"><div id="health-fill"></div></div>
@@ -148,6 +165,7 @@
       <div>Wallet: <span id="buy-money">$800</span></div>
       <button id="buy-smg" type="button">Buy PDW-9 SMG — $900</button>
       <button id="buy-sniper" type="button">Buy LR-8 Longshot — $1200</button>
+      <button id="buy-vest" type="button">Buy Kevlar vest — $500</button>
       <button id="buy-frag" type="button">Buy frag grenade — $300 (0/2)</button>
     </div>
     <ul class="keys">
