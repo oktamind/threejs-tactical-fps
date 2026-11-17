@@ -423,15 +423,18 @@ function runShot(name) {
       settle(6);
     }
     settle(8);
+    body.health = 100;
     syncHud();
   } else if (name === 'bomb') {
     roundsState.round = 2;
     roundsState.playerWins = 1;
     roundsState.timer = 61;
-    body.position.set(-10.5, 0, -7.5);
-    bots.items[2].position.set(-8, 0, -5);
+    body.position.set(-9.5, 0, -6);
+    bots.items[0].position.set(-17, 0, -13);
+    bots.items[1].position.set(-12, 0, -13.5);
+    bots.items[2].position.set(-5, 0, -8);
     bots.items[2].state = 'alert';
-    bots.items[2].lastKnown.set(-10.5, 0, -7.5);
+    bots.items[2].lastKnown.set(-13, 0, -10);
     settle(10);
     aimAt(new THREE.Vector3(-14, 1.5, -11));
     bombState.planting = true;

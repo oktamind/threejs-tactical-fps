@@ -16,8 +16,8 @@ const VISION_HALF_ANGLE = 0.96;
 const HEAR_RADIUS = 26;
 const BURST_MIN = 3;
 const BURST_MAX = 5;
-const SHOT_GAP = 0.13;
-const BURST_PAUSE = 0.85;
+const SHOT_GAP = 0.16;
+const BURST_PAUSE = 1.15;
 
 const BODY_MATERIAL = new THREE.MeshStandardMaterial({ color: new THREE.Color('#7a4a3a'), roughness: 0.65, metalness: 0.1 });
 const VISOR_MATERIAL = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.amber), roughness: 0.4, metalness: 0.2, emissive: new THREE.Color(PALETTE.amber), emissiveIntensity: 0.35 });
@@ -173,7 +173,7 @@ export function createBots(scene, colliders, shootables, random) {
           if (bot.state !== 'engage') {
             bot.state = 'engage';
             bot.burstLeft = 0;
-            bot.pauseTimer = 0.2;
+            bot.pauseTimer = 0.7 + random() * 0.5;
           }
         } else if (bot.state === 'engage') {
           bot.state = 'alert';
@@ -228,7 +228,7 @@ export function createBots(scene, colliders, shootables, random) {
             bot.burstLeft -= 1;
             if (bot.burstLeft === 0) bot.pauseTimer = BURST_PAUSE;
             // Hitscan with spread: accuracy falls with distance and target speed.
-            const spread = 0.02 + distance * 0.0016 + player.speed * 0.004;
+            const spread = 0.03 + distance * 0.002 + player.speed * 0.005;
             eye.set(bot.position.x, 1.5, bot.position.z);
             dir.set(playerPos.x - eye.x, playerEye - 1.5, playerPos.z - eye.z).normalize();
             dir.x += (random() * 2 - 1) * spread;
@@ -246,7 +246,7 @@ export function createBots(scene, colliders, shootables, random) {
               shotHead = closestDistance(eye, dir, head) < 0.26;
               const hitBody = closestDistance(eye, dir, chest) < 0.5;
               if (shotHead || hitBody) {
-                shotDamage = shotHead ? 26 : 11 + Math.floor(random() * 6);
+                shotDamage = shotHead ? 22 : 9 + Math.floor(random() * 5);
               }
             }
             if (onBotShot) onBotShot(shotDamage, shotHead, bot);
